@@ -84,7 +84,6 @@ function CreateCoroutine(shape)
 		local a = {}
 
 		local x, y, z = GetShapeSize(shape)
-		--local step = math.ceil((x+y+z) / samples)
 		local step = math.ceil(math.pow((x*y*z) / samples, 1/3))
 
 		DebugPrint("step: "..step)
@@ -109,8 +108,7 @@ function CreateCoroutine(shape)
 		local center = ShapeApproxCenter(v, 25)
 		local max = {}
 		local maxv = 0
-	
-		--ASBrandes(v, a, 50, 2)
+			
 		for K,val in pairs(ASBrandes(v, a, 50, 2)) do
 			local k = Decode(K)
 		
