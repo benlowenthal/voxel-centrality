@@ -41,7 +41,7 @@ function tick(dt)
 	
 	for key=1, #crosses do
         local crs = crosses[key]
-		DebugCross(crs.pos, crs.value, crs.value, crs.value)
+		DebugCross(crs.pos, crs.colour[1], crs.colour[2], crs.colour[3])
 	end
 end
 
@@ -56,14 +56,20 @@ function UpdateVoxelCounts()
 				process = {}
 				process.routine = CreateCoroutine(h)
 				process.shape = h
-				process.count = newN
 
 				--if same shape updated, skip existing coroutine
 				if h == current.shape then
-					current = process
-				else
-					table.insert(queue, process)
+					current.routine = coroutine.create(function () end)
 				end
+
+				--if h in queue somewhere then skip that too
+				for i,p in pairs(queue) do
+					if p.shape == h then
+						table.remove(queue, i)
+					end
+				end
+				
+				table.insert(queue, process)
 			else
 				voxelCounts[h] = nil
 			end
@@ -104,25 +110,27 @@ function CreateCoroutine(shape)
 		
 		crosses = {}
 		local body = GetShapeBody(shape)
-		local n = current.count
+		local n = #v
 		local center = ShapeApproxCenter(v, 25)
+		local transform = GetShapeWorldTransform(shape)
 		local max = {}
 		local maxv = 0
-			
+		
 		for K,val in pairs(ASBrandes(v, a, 50, 2)) do
 			local k = Decode(K)
+			local worldPos = VecAdd(transform.pos, QuatRotateVec(transform.rot, VecScale(k, scale)))
 		
-			--weight based on distance from center / torque
-			local dist = VecSub(k, center)
-			local norm = val - (dist[2]/(y * 7.5)) + (VecLength(Vec(dist[1]/x, dist[2]/y, dist[3]/z)) / 10)
-			
+			--weight based on distance from center
+			local dist = VecSub(worldPos, center)
+			local norm = val + (VecLength(Vec(dist[1]/x, dist[2]/y, dist[3]/z)) / 10) - (dist[2]/(y * 7.5)) -- 10, 7.5
+			norm = norm * math.pow(voxelCounts[shape], 1/3) / 11
+
 			if norm >= 0 and not IsBodyDynamic(body) then
-				local transform = GetShapeWorldTransform(shape)
-				local worldPos = VecAdd(transform.pos, QuatRotateVec(transform.rot, VecScale(k, scale)))
-				table.insert(crosses, {["pos"]=worldPos, ["value"]=norm*5})
-		
-				if norm > threshold then
-					MakeHole(worldPos, scale*step, scale*step, scale*step)
+				if norm > 1 then
+					MakeHole(worldPos, scale*step*2, scale*step*2, scale*step*2)
+					table.insert(crosses, {["pos"]=worldPos, ["colour"]=Vec(1,0,0)})
+				else
+					table.insert(crosses, {["pos"]=worldPos, ["colour"]=Vec(norm,norm,norm)})
 				end
 			end
 		
@@ -132,15 +140,17 @@ function CreateCoroutine(shape)
 			end
 		end
 		
-		DebugPrint(Encode(max).." centr="..maxv..", count="..n)
+		DebugPrint(Encode(max).." centr="..maxv..", count="..#v)
 	end)
 end
 
 function ShapeApproxCenter(V, s)
 	local ctr = Vec(0,0,0)
+	local t = GetShapeWorldTransform(s)
 	for i = 1,s do
 		ctr = VecAdd(ctr, Decode(V[math.floor(i*#V/s)]))
 	end
 
-	return VecScale(ctr, 1 / s)
+	ctr = VecScale(ctr, 1 / s)
+	return VecAdd(t.pos, QuatRotateVec(t.rot, VecScale(ctr, scale)))
 end
